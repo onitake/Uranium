@@ -14,7 +14,7 @@ Vcs-Browser: https://github.com/Ultimaker/Uranium
 Package: python3-uranium
 Architecture: all
 Depends: ${shlibs:Depends}, ${misc:Depends}, ${python3:Depends},
- python3-numpy, python3-scipy, python3-protobuf, python3-serial,
+ python3-numpy, python3-scipy, python3-serial,
  python3-pyqt5, python3-pyqt5.qtopengl, python3-pyqt5.qtquick, python3-pyqt5.qtsvg,
  qml-module-qtqml-models2, qml-module-qtquick-dialogs,
  python3-arcus (>= 2.1.3)
@@ -27,19 +27,14 @@ Description: application framework for Cura (python library)
 
 Package: uranium-plugins
 Architecture: all
-Depends:
- ${shlibs:Depends},
- ${python3:Depends},
- ${misc:Depends}
+Depends: ${shlibs:Depends}, ${python3:Depends}, ${misc:Depends},
+ python3-uranium (= ${binary:Version})
 Description: application framework for Cura (plugins)
  Uranium is a Python framework for building 3D printing related applications.
 
 Package: uranium-tools
 Architecture: all
 Section: devel
-Depends:
- ${shlibs:Depends},
- ${python3:Depends},
- ${misc:Depends}
+Depends: ${shlibs:Depends}, ${python3:Depends}, ${misc:Depends}
 Description: application framework for Cura (development tools)
  Uranium is a Python framework for building 3D printing related applications.
