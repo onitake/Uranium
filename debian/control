@@ -2,8 +2,7 @@ Source: uranium
 Priority: optional
 Maintainer: Gregor Riepl <onitake@gmail.com>
 Build-Depends: debhelper (>= 9), cmake (>=2.8.12), dh-python,
- python3-all, python3-pytest, pylint3,
- doxygen, gettext
+ python3-all, gettext
 Standards-Version: 3.9.8
 Section: python
 X-Python3-Version: >= 3.4
