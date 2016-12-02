@@ -12,65 +12,45 @@ PreferencesPage
     id: base;
 
     property alias model: objectList.model;
+    property alias section: objectList.section;
+    property alias delegate: objectList.delegate;
     property string nameRole: "name";
     property bool detailsVisible: true;
 
     property variant objectList: objectList;
-    property variant currentItem: objectList.currentItem != null ? objectList.model.getItem(objectList.currentIndex) : null;
+    property variant currentItem: null
     property string scrollviewCaption: "";
 
     default property alias details: detailsPane.children;
 
     signal itemActivated();
-    signal addObject();
-    signal removeObject();
-    signal renameObject();
 
-    property alias addEnabled: addButton.enabled;
-    property alias removeEnabled: removeButton.enabled;
-    property alias renameEnabled: renameButton.enabled;
-
-    property alias buttons: buttons.children;
-
-    property alias addText: addButton.text;
+    property alias buttons: buttonRow.children;
 
     resetEnabled: false;
 
+    property string activeId: ""
+    property int activeIndex: -1
+
     Row
     {
-        id: buttons;
+        id: buttonRow;
 
-        width: childrenRect.width;
+        anchors
+        {
+            left: parent.left
+            right: parent.right
+            top: parent.top
+        }
+
         height: childrenRect.height;
-
-        Button
-        {
-            id: addButton;
-            text: catalog.i18nc("@action:button", "Add");
-            iconName: "list-add";
-            onClicked: base.addObject();
-        }
-        Button
-        {
-            id: removeButton;
-            text: catalog.i18nc("@action:button", "Remove");
-            iconName: "list-remove";
-            onClicked: base.removeObject();
-        }
-        Button
-        {
-            id: renameButton;
-            text: catalog.i18nc("@action:button", "Rename");
-            iconName: "edit-rename";
-            onClicked: base.renameObject();
-        }
     }
 
     Item
     {
         anchors
         {
-            top: buttons.bottom;
+            top: buttonRow.bottom;
             topMargin: UM.Theme.getSize("default_margin").height;
             left: parent.left;
             right: parent.right;
@@ -80,13 +60,15 @@ PreferencesPage
         Label
         {
             id: captionLabel
-            anchors 
+            anchors
             {
                 top: parent.top;
                 left: parent.left;
             }
             visible: scrollviewCaption != ""
             text: scrollviewCaption
+            width: objectListContainer.width
+            elide: Text.ElideRight
         }
 
         ScrollView
@@ -100,7 +82,7 @@ PreferencesPage
                 left: parent.left;
             }
 
-            width: base.detailsVisible ? parent.width / 2 : parent.width;
+            width: base.detailsVisible ? parent.width * 0.4 : parent.width;
             frameVisible: true;
 
             Rectangle {
@@ -112,18 +94,46 @@ PreferencesPage
             ListView
             {
                 id: objectList;
+                currentIndex: activeIndex
+                onCurrentIndexChanged:
+                {
+                    // Explicitly trigger onCurrentItemChanged
+                    base.currentItem = null;
+                    base.currentItem = (currentIndex != null) ? model.getItem(currentIndex) : null;
+                }
+
+                section.property: "group"
+                section.criteria: ViewSection.FullString
+                section.delegate: Rectangle
+                {
+                    width: objectListContainer.viewport.width;
+                    height: childrenRect.height;
+                    color: palette.light
+
+                    Label
+                    {
+                        anchors.left: parent.left;
+                        anchors.leftMargin: UM.Theme.getSize("default_lining").width;
+                        text: section
+                        font.bold: true
+                        color: palette.text;
+                    }
+                }
 
                 delegate: Rectangle
                 {
                     width: objectListContainer.viewport.width;
                     height: childrenRect.height;
-                    color: ListView.isCurrentItem ? palette.highlight : index % 2 ? palette.light : palette.midlight
+                    color: ListView.isCurrentItem ? palette.highlight : index % 2 ? palette.base : palette.alternateBase
 
                     Label
                     {
                         anchors.left: parent.left;
                         anchors.leftMargin: UM.Theme.getSize("default_margin").width;
+                        anchors.right: parent.right;
                         text: model.name
+                        elide: Text.ElideRight
+                        font.italic: model.id == activeId
                         color: parent.ListView.isCurrentItem ? palette.highlightedText : palette.text;
                     }
 
@@ -161,5 +171,18 @@ PreferencesPage
 
         UM.I18nCatalog { id: catalog; name: "uranium"; }
         SystemPalette { id: palette }
+
+        Connections
+        {
+            target: objectList.model
+
+            onDataChanged:
+            {
+                if(topLeft.row <= objectList.currentIndex || bottomRight.row <= objectList.currentIndex)
+                {
+                    base.currentItem = objectList.currentItem != null ? objectList.model.getItem(objectList.currentIndex) : null;
+                }
+            }
+        }
     }
 }

@@ -4,8 +4,8 @@
 from UM.Math.Vector import Vector
 import numpy
 
-##  A vertex with a position and a normal.
 
+##  A vertex with a position and a normal.
 class Vertex(object):
     ##  Construct a vertex.
     #
@@ -34,24 +34,14 @@ class Vertex(object):
     def position(self):
         return self._position
 
-    ##  Set the position the vertex
-    #   \param position Vector
-    def setPosition(self, position):
-        self._position = position
-    
     ##  Get the normal the vertex
     #   \returns normal Vector
     @property
     def normal(self):
         return self._normal
     
-    ##  Set the normal the vertex
-    #   \param normal Vector
-    def setNormal(self, normal):
-        self._normal = normal
-
     def hasNormal(self):
-        return self._normal != None
+        return self._normal is not None
     
     ##  Convert the vertex into a string, which is required for parsing over sockets / streams
     #   It's kinda hackish to do it this way, but it would take to much effort to implement myself.

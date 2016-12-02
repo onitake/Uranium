@@ -28,7 +28,7 @@ class LocalFileOutputDevicePlugin(OutputDevicePlugin):
         super().__init__()
 
         Preferences.getInstance().addPreference("local_file/last_used_type", "")
-        Preferences.getInstance().addPreference("local_file/dialog_state", "")
+        Preferences.getInstance().addPreference("local_file/dialog_save_path", "")
 
     def start(self):
         self.getOutputDeviceManager().addOutputDevice(LocalFileOutputDevice())
@@ -54,20 +54,17 @@ class LocalFileOutputDevice(OutputDevice):
     #   should be written to the device.
     #   \param file_name \type{string} A suggestion for the file name to write
     #   to. Can be freely ignored if providing a file name makes no sense.
-    #   \param filter_by_machine \type{bool} If the file name is ignored, should
-    #   the file format be limited to the formats that are supported by the
+    #   \param limit_mimetypes
     #   currently active machine?
-    def requestWrite(self, node, file_name = None, filter_by_machine = False):
+    def requestWrite(self, node, file_name = None, limit_mimetypes = None):
         if self._writing:
             raise OutputDeviceError.DeviceBusyError()
 
         dialog = QFileDialog()
+
         dialog.setWindowTitle(catalog.i18nc("@title:window", "Save to File"))
         dialog.setFileMode(QFileDialog.AnyFile)
         dialog.setAcceptMode(QFileDialog.AcceptSave)
-
-        default_save_path = os.path.expanduser("~/")
-        dialog.setDirectory(default_save_path)
 
         # Ensure platform never ask for overwrite confirmation since we do this ourselves
         dialog.setOption(QFileDialog.DontConfirmOverwrite)
@@ -82,9 +79,9 @@ class LocalFileOutputDevice(OutputDevice):
 
         file_types = Application.getInstance().getMeshFileHandler().getSupportedFileTypesWrite()
         file_types.sort(key = lambda k: k["description"])
-        if filter_by_machine:
-            machine_file_formats = Application.getInstance().getMachineManager().getActiveMachineInstance().getMachineDefinition().getFileFormats()
-            file_types = list(filter(lambda file_type: file_type["mime_type"] in machine_file_formats, file_types)) #Take the intersection between file_types and machine_file_formats.
+        if limit_mimetypes:
+            file_types = list(filter(lambda i: i["mime_type"] in limit_mimetypes, file_types))
+
         if len(file_types) == 0:
             Logger.log("e", "There are no file types available to write with!")
             raise OutputDeviceError.WriteRequestFailedError()
@@ -105,12 +102,14 @@ class LocalFileOutputDevice(OutputDevice):
         if file_name != None:
             dialog.selectFile(file_name)
 
-        dialog.restoreState(Preferences.getInstance().getValue("local_file/dialog_state").encode())
+        stored_directory = Preferences.getInstance().getValue("local_file/dialog_save_path")
+        dialog.setDirectory(stored_directory)
 
         if not dialog.exec_():
             raise OutputDeviceError.UserCanceledError()
 
-        Preferences.getInstance().setValue("local_file/dialog_state", str(dialog.saveState()))
+        save_path = dialog.directory().absolutePath()
+        Preferences.getInstance().setValue("local_file/dialog_save_path", save_path)
 
         selected_type = file_types[filters.index(dialog.selectedNameFilter())]
         Preferences.getInstance().setValue("local_file/last_used_type", selected_type["mime_type"])

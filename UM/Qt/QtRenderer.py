@@ -22,6 +22,8 @@ from UM.View.GL.OpenGL import OpenGL
 from UM.View.RenderBatch import RenderBatch
 from UM.Qt.GL.QtOpenGL import QtOpenGL
 
+from UM.Signal import Signal, signalemitter
+
 import numpy
 import copy
 from ctypes import c_void_p
@@ -30,6 +32,7 @@ vertexBufferProperty = "__qtgl2_vertex_buffer"
 indexBufferProperty = "__qtgl2_index_buffer"
 
 ##  A Renderer implementation using PyQt's OpenGL implementation to render.
+@signalemitter
 class QtRenderer(Renderer):
     def __init__(self):
         super().__init__()
@@ -55,6 +58,8 @@ class QtRenderer(Renderer):
 
         self._camera = None
 
+    initialized = Signal()
+
     ##  Get an integer multiplier that can be used to correct for screen DPI.
     def getPixelMultiplier(self):
         # Standard assumption for screen pixel density is 96 DPI. We use that as baseline to get
@@ -75,6 +80,12 @@ class QtRenderer(Renderer):
     ##  Set background color used when rendering.
     def setBackgroundColor(self, color):
         self._background_color = color
+
+    def getViewportWidth(self):
+        return self._viewport_width
+
+    def getViewportHeight(self):
+        return self._viewport_height
 
     ##  Set the viewport size.
     #
@@ -119,10 +130,10 @@ class QtRenderer(Renderer):
         shader = kwargs.pop("shader", self._default_material)
         batch = RenderBatch(shader, type = type, **kwargs)
 
-        batch.addItem(node.getWorldTransformation(), kwargs.get("mesh", node.getMeshData()))
+        batch.addItem(node.getWorldTransformation(), kwargs.get("mesh", node.getMeshData()), kwargs.pop("uniforms", None))
 
         self._batches.append(batch)
-    
+
     ##  Overrides Renderer::render()
     def render(self):
         self._batches.sort()
@@ -187,3 +198,4 @@ class QtRenderer(Renderer):
         self._quad_buffer = buffer
 
         self._initialized = True
+        self.initialized.emit()

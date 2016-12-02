@@ -22,7 +22,7 @@ Item {
         if(value == "True")
         {
             return true
-        }else if(value == "False")
+        }else if(value == "False" || value == undefined)
         {
             return false
         }
@@ -54,6 +54,7 @@ Item {
             right: parent.right;
             bottom: parent.bottom;
             margins: 5;
+            bottomMargin: 0;
         }
 
         clip: true;

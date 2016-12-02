@@ -1,29 +1,31 @@
 # Copyright (c) 2015 Ultimaker B.V.
 # Uranium is released under the terms of the AGPLv3 or higher.
 
-from UM.Signal import Signal, SignalEmitter
-from UM.Logger import Logger
-
-import sys
 import multiprocessing
 import threading
-import traceback
+
+from UM.Signal import Signal, signalemitter
+from UM.Logger import Logger
+
 
 ##  A thread pool and queue manager for Jobs.
 #
 #   The JobQueue class manages a queue of Job objects and a set of threads that
 #   can take things from this queue to process them.
 #   \sa Job
-class JobQueue(SignalEmitter):
+@signalemitter
+class JobQueue():
     ##  Initialize.
     #
     #   \param thread_count The amount of threads to use. Can be a positive integer or 'auto'.
-    #                       When 'auto', the number of threads is based on the number of cpus on the machine.
-    def __init__(self, thread_count = "auto"):
+    #                       When 'auto', the number of threads is based on the number of processors and cores on the machine.
+    def __init__(self, thread_count = "auto"): #pylint: disable=bad-whitespace
         if JobQueue._instance is None:
             JobQueue._instance = self
         else:
             raise RuntimeError("Attempted to create multiple instances of JobQueue")
+
+        super().__init__()
 
         if thread_count == "auto":
             try:
@@ -32,7 +34,7 @@ class JobQueue(SignalEmitter):
                 thread_count = 0
 
         if thread_count <= 0:
-            thread_count = 2 #Assume we can run at least two threads in parallel.
+            thread_count = 2  # Assume we can run at least two threads in parallel.
 
         self._threads = [_Worker(self) for t in range(thread_count)]
 
@@ -40,9 +42,9 @@ class JobQueue(SignalEmitter):
         self._jobs = []
         self._jobs_lock = threading.Lock()
 
-        for t in self._threads:
-            t.daemon = True
-            t.start()
+        for thread in self._threads:
+            thread.daemon = True
+            thread.start()
 
     ##  Add a Job to the queue.
     #
@@ -96,6 +98,7 @@ class JobQueue(SignalEmitter):
 
     _instance = None
 
+
 ##  Internal
 #
 #   A worker thread that can process jobs from the JobQueue.
@@ -118,10 +121,7 @@ class _Worker(threading.Thread):
             try:
                 job.run()
             except Exception as e:
-                Logger.log("e", "Job %s caused an exception:", str(job))
-                output = traceback.format_exception(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2])
-                for string in output:
-                    Logger.log("e", string.strip("\n"))
+                Logger.logException("e", "Job %s caused an exception", str(job))
                 job.setError(e)
 
             job._running = False

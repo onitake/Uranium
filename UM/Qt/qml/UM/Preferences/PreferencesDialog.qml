@@ -61,6 +61,7 @@ Dialog
             id: stackView
             anchors {
                 left: pagesList.right;
+                leftMargin: UM.Theme.getSize("default_margin").width / 2;
                 top: parent.top;
                 bottom: parent.bottom;
                 right: parent.right;
@@ -144,9 +145,7 @@ Dialog
         //This uses insertPage here because ListModel is stupid and does not allow using qsTr() on elements.
         insertPage(0, catalog.i18nc("@title:tab", "General"), Qt.resolvedUrl("GeneralPage.qml"));
         insertPage(1, catalog.i18nc("@title:tab", "Settings"), Qt.resolvedUrl("SettingVisibilityPage.qml"));
-        insertPage(2, catalog.i18nc("@title:tab", "Printers"), Qt.resolvedUrl("MachinesPage.qml"));
-        insertPage(3, catalog.i18nc("@title:tab", "Profiles"), Qt.resolvedUrl("ProfilesPage.qml"));
-        insertPage(4, catalog.i18nc("@title:tab", "Plugins"), Qt.resolvedUrl("PluginsPage.qml"));
+        insertPage(2, catalog.i18nc("@title:tab", "Plugins"), Qt.resolvedUrl("PluginsPage.qml"));
 
         setPage(0)
     }

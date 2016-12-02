@@ -13,10 +13,11 @@ Window {
     modality: Qt.ApplicationModal;
     flags: Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint | Qt.WindowCloseButtonHint;
 
-    width: Screen.devicePixelRatio * 640;
-    height: Screen.devicePixelRatio * 480;
+    width: screenScaleFactor * 640;
+    height: screenScaleFactor * 480;
 
     property int margin: Screen.devicePixelRatio * 8;
+    property bool closeOnAccept: true;  // Automatically close the window when the window is "accepted" (eg using the return key)
 
     default property alias contents: contentItem.children;
 
@@ -27,7 +28,9 @@ Window {
     signal rejected();
 
     function accept() {
-        base.visible = false;
+        if (base.closeOnAccept) {
+            base.visible = false;
+        }
         base.accepted();
     }
 

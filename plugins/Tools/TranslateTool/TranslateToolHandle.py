@@ -2,10 +2,10 @@
 # Uranium is released under the terms of the AGPLv3 or higher.
 
 from UM.Scene.ToolHandle import ToolHandle
-from UM.View.Renderer import Renderer
-from UM.Mesh.MeshData import MeshData
 from UM.Mesh.MeshBuilder import MeshBuilder
 from UM.Math.Vector import Vector
+
+##  Provides the two block-shaped toolhandles connected with a line for each axis for the translate tool
 
 class TranslateToolHandle(ToolHandle):
     def __init__(self, parent = None):
@@ -90,7 +90,7 @@ class TranslateToolHandle(ToolHandle):
                 angle = -90
             )
 
-        self.setSolidMesh(mb.getData())
+        self.setSolidMesh(mb.build())
 
         mb = MeshBuilder()
         #ACTIVEMESH -> LINES
@@ -152,4 +152,4 @@ class TranslateToolHandle(ToolHandle):
             center = Vector(0, 0, self._active_handle_position),
             color = ToolHandle.ZAxisColor
         )
-        self.setSelectionMesh(mb.getData())
+        self.setSelectionMesh(mb.build())

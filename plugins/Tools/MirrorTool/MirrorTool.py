@@ -4,18 +4,17 @@
 from UM.Tool import Tool
 from UM.Event import Event, MouseEvent
 
-from UM.Math.Plane import Plane
 from UM.Math.Vector import Vector
-from UM.Math.Float import Float
 
 from UM.Operations.MirrorOperation import MirrorOperation
 from UM.Operations.GroupedOperation import GroupedOperation
-from UM.Application import Application
 
 from UM.Scene.Selection import Selection
 from UM.Scene.ToolHandle import ToolHandle
 
 from . import MirrorToolHandle
+
+##  Provides the tool to mirror meshes and groups
 
 class MirrorTool(Tool):
     def __init__(self):
@@ -23,10 +22,16 @@ class MirrorTool(Tool):
 
         self._handle = MirrorToolHandle.MirrorToolHandle()
 
+        self._operation_started = False
+
+    ##  Handle mouse and keyboard events
+    #
+    #   \param event type(Event)
     def event(self, event):
         super().event(event)
 
         if event.type == Event.MousePressEvent and self._controller.getToolsEnabled():
+            # Initialise a mirror operation
             if MouseEvent.LeftButton not in event.buttons:
                 return False
 
@@ -37,32 +42,40 @@ class MirrorTool(Tool):
             if ToolHandle.isAxis(id):
                 self.setLockedAxis(id)
                 return True
+            self._operation_started = True
+            self.operationStarted.emit(self)
 
         if event.type == Event.MouseReleaseEvent:
+            if self._operation_started:
+                self._operation_started = False
+                self.operationStopped.emit(self)
+
+            # Perform a mirror operation
             if self.getLockedAxis():
                 op = None
                 if Selection.getCount() == 1:
                     node = Selection.getSelectedObject(0)
-                    mirror = Vector(1,1,1)
                     if self.getLockedAxis() == ToolHandle.XAxis:
-                        mirror.setX(-1)
+                        mirror = Vector(-1, 1, 1)
                     elif self.getLockedAxis() == ToolHandle.YAxis:
-                        mirror.setY(-1)
+                        mirror = Vector(1, -1, 1)
                     elif self.getLockedAxis() == ToolHandle.ZAxis:
-                        mirror.setZ(-1)
-
+                        mirror = Vector(1, 1, -1)
+                    else:
+                        mirror = Vector(1, 1, 1)
                     op = MirrorOperation(node, mirror, mirror_around_center = True)
                 else:
                     op = GroupedOperation()
 
                     for node in Selection.getAllSelectedObjects():
-                        mirror = Vector(1,1,1)
                         if self.getLockedAxis() == ToolHandle.XAxis:
-                            mirror.setX(-1)
+                            mirror = Vector(-1, 1, 1)
                         elif self.getLockedAxis() == ToolHandle.YAxis:
-                            mirror.setY(-1)
+                            mirror = Vector(1, -1, 1)
                         elif self.getLockedAxis() == ToolHandle.ZAxis:
-                            mirror.setZ(-1)
+                            mirror = Vector(1, 1, -1)
+                        else:
+                            mirror = Vector(1, 1, 1)
 
                         op.addOperation(MirrorOperation(node, mirror, mirror_around_center = True))
 

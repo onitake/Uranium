@@ -1,62 +1,64 @@
 # Copyright (c) 2015 Ultimaker B.V.
 # Uranium is released under the terms of the AGPLv3 or higher.
 
+import threading
+import argparse
+import os
+import sys
+
 from UM.Controller import Controller
 from UM.PluginRegistry import PluginRegistry
 from UM.Mesh.MeshFileHandler import MeshFileHandler
 from UM.Resources import Resources
 from UM.Operations.OperationStack import OperationStack
 from UM.Event import CallFunctionEvent
-from UM.Signal import Signal, SignalEmitter
+from UM.Signal import Signal, signalemitter
 from UM.Logger import Logger
 from UM.Preferences import Preferences
 from UM.OutputDevice.OutputDeviceManager import OutputDeviceManager
-from UM.Settings.MachineManager import MachineManager
 from UM.i18n import i18nCatalog
 
-import threading
-import argparse
-import os
-import urllib.parse
-import sys
+import UM.Settings
 
 ##  Central object responsible for running the main event loop and creating other central objects.
 #
 #   The Application object is a central object for accessing other important objects. It is also
 #   responsible for starting the main event loop. It is passed on to plugins so it can be easily
 #   used to access objects required for those plugins.
-class Application(SignalEmitter):
+@signalemitter
+class Application():
     ##  Init method
     #
     #   \param name \type{string} The name of the application.
     #   \param version \type{string} Version, formatted as major.minor.rev
-    def __init__(self, name, version,  **kwargs):
-        if(Application._instance != None):
+    def __init__(self, name, version, buildtype = "", **kwargs):
+        if Application._instance != None:
             raise ValueError("Duplicate singleton creation")
-        
-        # If the constructor is called and there is no instance, set the instance to self. 
+
+        # If the constructor is called and there is no instance, set the instance to self.
         # This is done because we can't make constructor private
         Application._instance = self
 
         self._application_name = name
         self._version = version
-        
-        os.putenv("UBUNTU_MENUPROXY","0") #For Ubuntu Unity this makes Qt use its own menu bar rather than pass it on to Unity.
+        self._buildtype = buildtype
+
+        os.putenv("UBUNTU_MENUPROXY", "0")  # For Ubuntu Unity this makes Qt use its own menu bar rather than pass it on to Unity.
 
         Signal._app = self
         Resources.ApplicationIdentifier = name
         i18nCatalog.setApplication(self)
 
-        Resources.addSearchPath(os.path.dirname(sys.executable))
-        Resources.addSearchPath(os.path.join(Application.getInstallPrefix(), "share", "uranium"))
-        Resources.addSearchPath(os.path.join(Application.getInstallPrefix(), "Resources", "uranium"))
-        Resources.addSearchPath(os.path.join(Application.getInstallPrefix(), "Resources", self.getApplicationName()))
+        Resources.addSearchPath(os.path.join(os.path.dirname(sys.executable), "resources"))
+        Resources.addSearchPath(os.path.join(Application.getInstallPrefix(), "share", "uranium", "resources"))
+        Resources.addSearchPath(os.path.join(Application.getInstallPrefix(), "Resources", "uranium", "resources"))
+        Resources.addSearchPath(os.path.join(Application.getInstallPrefix(), "Resources", self.getApplicationName(), "resources"))
         if not hasattr(sys, "frozen"):
-            Resources.addSearchPath(os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
+            Resources.addSearchPath(os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "resources"))
 
         self._main_thread = threading.current_thread()
 
-        super().__init__(**kwargs) # Call super to make multiple inheritence work.
+        super().__init__()  # Call super to make multiple inheritance work.
 
         self._renderer = None
 
@@ -66,6 +68,8 @@ class Application(SignalEmitter):
 
         preferences = Preferences.getInstance()
         preferences.addPreference("general/language", "en")
+        preferences.addPreference("general/visible_settings", "")
+
         try:
             preferences.readFromFile(Resources.getPath(Resources.Preferences, self._application_name + ".cfg"))
         except FileNotFoundError:
@@ -76,7 +80,6 @@ class Application(SignalEmitter):
         self._extensions = []
         self._backend = None
         self._output_device_manager = OutputDeviceManager()
-        self._machine_manager = MachineManager(self._application_name)
 
         self._required_plugins = []
 
@@ -89,7 +92,14 @@ class Application(SignalEmitter):
         self._plugin_registry.addPluginLocation(os.path.join(Application.getInstallPrefix(), "Resources", "uranium", "plugins"))
         self._plugin_registry.addPluginLocation(os.path.join(Application.getInstallPrefix(), "Resources", self.getApplicationName(), "plugins"))
         # Locally installed plugins
-        self._plugin_registry.addPluginLocation(os.path.join(Resources.getStoragePath(Resources.Resources), "plugins"))
+        local_path = os.path.join(Resources.getStoragePath(Resources.Resources), "plugins")
+        # Ensure the local plugins directory exists
+        try:
+            os.makedirs(local_path)
+        except OSError:
+            pass
+        self._plugin_registry.addPluginLocation(local_path)
+
         if not hasattr(sys, "frozen"):
             self._plugin_registry.addPluginLocation(os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "plugins"))
 
@@ -103,6 +113,9 @@ class Application(SignalEmitter):
         self.showMessageSignal.connect(self.showMessage)
         self.hideMessageSignal.connect(self.hideMessage)
 
+        self._global_container_stack = None
+
+
     ##  Emitted when the application window was closed and we need to shut down the application
     applicationShuttingDown = Signal()
 
@@ -110,21 +123,35 @@ class Application(SignalEmitter):
 
     hideMessageSignal = Signal()
 
+    globalContainerStackChanged = Signal()
+
+    def setGlobalContainerStack(self, stack):
+        self._global_container_stack = stack
+        self.globalContainerStackChanged.emit()
+
+    def getGlobalContainerStack(self):
+        return self._global_container_stack
+
     def hideMessage(self, message):
         raise NotImplementedError
 
     def showMessage(self, message):
         raise NotImplementedError
 
-    ##  Get the version of the application  
-    #   \returns version \type{string} 
+    ##  Get the version of the application
+    #   \returns version \type{string}
     def getVersion(self):
         return self._version
 
+    ##  Get the buildtype of the application
+    #   \returns version \type{string}
+    def getBuildType(self):
+        return self._buildtype
+
     ##  Add a message to the visible message list so it will be displayed.
-    #   This should only be called by message object itself. 
+    #   This should only be called by message object itself.
     #   To show a message, simply create it and call its .show() function.
-    #   \param message \type{Message} message object 
+    #   \param message \type{Message} message object
     #   \sa Message::show()
     #def showMessage(self, message):
     #    with self._message_lock:
@@ -135,9 +162,9 @@ class Application(SignalEmitter):
     visibleMessageAdded = Signal()
 
     ##  Remove a message from the visible message list so it will no longer be displayed.
-    #   This should only be called by message object itself. 
+    #   This should only be called by message object itself.
     #   in principle, this should only be called by the message itself (hide)
-    #   \param message \type{Message} message object 
+    #   \param message \type{Message} message object
     #   \sa Message::hide()
     #def hideMessage(self, message):
     #    with self._message_lock:
@@ -155,8 +182,8 @@ class Application(SignalEmitter):
                     found_message = message
         if found_message is not None:
             self.hideMessageSignal.emit(found_message)
-            
-    visibleMessageRemoved = Signal()            
+
+    visibleMessageRemoved = Signal()
 
     ##  Get list of all visible messages
     #   \returns visible_messages \type{list}
@@ -164,11 +191,11 @@ class Application(SignalEmitter):
         with self._message_lock:
             return self._visible_messages
 
-    ##  Function that needs to be overriden by child classes with a list of plugin it needs.
+    ##  Function that needs to be overridden by child classes with a list of plugin it needs.
     def _loadPlugins(self):
         pass
 
-    def getCommandLineOption(self, name, default = None):
+    def getCommandLineOption(self, name, default = None): #pylint: disable=bad-whitespace
         if not self._parsed_command_line:
             self.parseCommandLine()
             Logger.log("d", "Command line options: %s", str(self._parsed_command_line))
@@ -216,9 +243,6 @@ class Application(SignalEmitter):
     def setBackend(self, backend):
         self._backend = backend
 
-    def getMachineManager(self):
-        return self._machine_manager
-
     ##  Get the backend of the application (the program that does the heavy lifting).
     #   \returns Backend \type{Backend}
     def getBackend(self):
@@ -245,8 +269,8 @@ class Application(SignalEmitter):
     def getOutputDeviceManager(self):
         return self._output_device_manager
 
-    ##  Run the main eventloop.
-    #   This method should be reimplemented by subclasses to start the main event loop.
+    ##  Run the main event loop.
+    #   This method should be re-implemented by subclasses to start the main event loop.
     #   \exception NotImplementedError
     def run(self):
         raise NotImplementedError("Run must be implemented by application")
@@ -286,13 +310,12 @@ class Application(SignalEmitter):
         return Application._instance
 
     def parseCommandLine(self):
-        parser = argparse.ArgumentParser(prog = self.getApplicationName())
+        parser = argparse.ArgumentParser(prog = self.getApplicationName()) #pylint: disable=bad-whitespace
         parser.add_argument("--version", action="version", version="%(prog)s {0}".format(self.getVersion()))
         parser.add_argument("--external-backend",
                             dest="external-backend",
                             action="store_true", default=False,
                             help="Use an externally started backend instead of starting it automatically.")
-
         self.addCommandLineOptions(parser)
 
         self._parsed_command_line = vars(parser.parse_args())

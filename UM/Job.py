@@ -3,9 +3,10 @@
 
 import time
 
-from UM.Signal import Signal, SignalEmitter
+from UM.Signal import Signal, signalemitter
 
 from UM.JobQueue import JobQueue
+
 
 ##  Base class for things that should be performed in a thread.
 #
@@ -13,7 +14,8 @@ from UM.JobQueue import JobQueue
 #   self-contained task that should be performed in a thread. It makes
 #   use of the JobQueue for the actual threading.
 #   \sa JobQueue
-class Job(SignalEmitter):
+@signalemitter
+class Job():
     ##  Initialize.
     #
     #   \param kwargs Keyword arguments.
@@ -121,4 +123,4 @@ class Job(SignalEmitter):
     #   if it is waiting.
     @staticmethod
     def yieldThread():
-        time.sleep(0) #Sleeping for 0 introduces no delay but does allow context switching.
+        time.sleep(0)  # Sleeping for 0 introduces no delay but does allow context switching.

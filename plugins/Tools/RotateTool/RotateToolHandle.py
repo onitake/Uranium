@@ -2,11 +2,12 @@
 # Uranium is released under the terms of the AGPLv3 or higher.
 
 from UM.Scene.ToolHandle import ToolHandle
-from UM.Mesh.MeshData import MeshData
 from UM.Mesh.MeshBuilder import MeshBuilder
 from UM.Math.Vector import Vector
 
 import math
+
+##  Provides the circular toolhandles for each axis for the rotate tool
 
 class RotateToolHandle(ToolHandle):
     def __init__(self, parent = None):
@@ -45,7 +46,7 @@ class RotateToolHandle(ToolHandle):
             angle = math.pi / 2,
             color = ToolHandle.XAxisColor
         )
-        self.setSolidMesh(mb.getData())
+        self.setSolidMesh(mb.build())
 
         #SELECTIONMESH
         mb = MeshBuilder()
@@ -75,4 +76,4 @@ class RotateToolHandle(ToolHandle):
             color = ToolHandle.XAxisColor
         )
 
-        self.setSelectionMesh(mb.getData())
+        self.setSelectionMesh(mb.build())

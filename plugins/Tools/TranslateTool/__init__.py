@@ -14,17 +14,14 @@ def getMetaData():
             "author": "Ultimaker",
             "version": "1.0",
             "description": i18n_catalog.i18nc("@info:whatsthis", "Provides the Translate tool."),
-            "api": 2
+            "api": 3
         },
         "tool": {
-            "name": i18n_catalog.i18nc("@action:button", "Translate"),
-            "description": i18n_catalog.i18nc("@info:tooltip", "Translate Object"),
-            "icon": "translate"
-        },
-        "cura": {
-            "tool": {
-                "visible": False
-            }
+            "name": i18n_catalog.i18nc("@action:button", "Move"),
+            "description": i18n_catalog.i18nc("@info:tooltip", "Move Model"),
+            "icon": "translate",
+            "tool_panel": "TranslateTool.qml",
+            "weight": -1
         }
     }
 

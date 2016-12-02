@@ -14,11 +14,11 @@ def getMetaData():
             "author": "Ultimaker",
             "version": "1.0",
             "description": i18n_catalog.i18nc("@info:whatsthis", "Provides the Scale tool."),
-            "api": 2
+            "api": 3
         },
         "tool": {
             "name": i18n_catalog.i18nc("@label", "Scale"),
-            "description": i18n_catalog.i18nc("@info:tooltip", "Scale Object"),
+            "description": i18n_catalog.i18nc("@info:tooltip", "Scale Model"),
             "icon": "scale",
             "tool_panel": "ScaleTool.qml",
             "weight": 0

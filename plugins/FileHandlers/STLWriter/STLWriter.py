@@ -43,9 +43,11 @@ class STLWriter(MeshWriter):
 
         for node in nodes:
             mesh_data = node.getMeshData().getTransformed(node.getWorldTransformation())
+            verts = mesh_data.getVertices()
+            if verts is None:
+                continue  # No mesh data, nothing to do.
 
             if mesh_data.hasIndices():
-                verts = mesh_data.getVertices()
                 for face in mesh_data.getIndices():
                     stream.write("facet normal 0.0 0.0 0.0\n")
                     stream.write("  outer loop\n")
@@ -53,6 +55,20 @@ class STLWriter(MeshWriter):
                     v1 = verts[face[0]]
                     v2 = verts[face[1]]
                     v3 = verts[face[2]]
+                    stream.write("    vertex {0} {1} {2}\n".format(v1[0], -v1[2], v1[1]))
+                    stream.write("    vertex {0} {1} {2}\n".format(v2[0], -v2[2], v2[1]))
+                    stream.write("    vertex {0} {1} {2}\n".format(v3[0], -v3[2], v3[1]))
+
+                    stream.write("  endloop\n")
+                    stream.write("endfacet\n")
+            else:
+                num_verts = mesh_data.getVertexCount()
+                for index in range(0, num_verts - 1, 3):
+                    stream.write("facet normal 0.0 0.0 0.0\n")
+                    stream.write("  outer loop\n")
+                    v1 = verts[index]
+                    v2 = verts[index + 1]
+                    v3 = verts[index + 2]
                     stream.write("    vertex {0} {1} {2}\n".format(v1[0], -v1[2], v1[1]))
                     stream.write("    vertex {0} {1} {2}\n".format(v2[0], -v2[2], v2[1]))
                     stream.write("    vertex {0} {1} {2}\n".format(v3[0], -v3[2], v3[1]))
@@ -67,7 +83,10 @@ class STLWriter(MeshWriter):
 
         face_count = 0
         for node in nodes:
-            face_count += node.getMeshData().getFaceCount()
+            if node.getMeshData().hasIndices():
+                face_count += node.getMeshData().getFaceCount()
+            else:
+                face_count += node.getMeshData().getVertexCount() / 3
 
         stream.write(struct.pack("<I", int(face_count))) #Write number of faces to STL
 
@@ -80,6 +99,18 @@ class STLWriter(MeshWriter):
                     v1 = verts[face[0]]
                     v2 = verts[face[1]]
                     v3 = verts[face[2]]
+                    stream.write(struct.pack("<fff", 0.0, 0.0, 0.0))
+                    stream.write(struct.pack("<fff", v1[0], -v1[2], v1[1]))
+                    stream.write(struct.pack("<fff", v2[0], -v2[2], v2[1]))
+                    stream.write(struct.pack("<fff", v3[0], -v3[2], v3[1]))
+                    stream.write(struct.pack("<H", 0))
+            else:
+                num_verts = mesh_data.getVertexCount()
+                verts = mesh_data.getVertices()
+                for index in range(0, num_verts - 1, 3):
+                    v1 = verts[index]
+                    v2 = verts[index + 1]
+                    v3 = verts[index + 2]
                     stream.write(struct.pack("<fff", 0.0, 0.0, 0.0))
                     stream.write(struct.pack("<fff", v1[0], -v1[2], v1[1]))
                     stream.write(struct.pack("<fff", v2[0], -v2[2], v2[1]))

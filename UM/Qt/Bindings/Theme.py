@@ -28,7 +28,7 @@ class Theme(QObject):
 
         # Workaround for incorrect default font on Windows
         if sys.platform == "win32":
-            default_font = QFont("Segoe UI")
+            default_font = QFont()
             default_font.setPointSize(9)
             QCoreApplication.instance().setFont(default_font)
 
@@ -38,12 +38,11 @@ class Theme(QObject):
         self._initializeDefaults()
 
         Preferences.getInstance().addPreference("general/theme", Application.getInstance().getApplicationName())
-
         try:
             theme_path = Resources.getPath(Resources.Themes, Preferences.getInstance().getValue("general/theme"))
             self.load(theme_path)
         except FileNotFoundError:
-            pass
+            Logger.log("e", "Could not find theme file.")
 
     themeLoaded = pyqtSignal()
 
@@ -124,6 +123,7 @@ class Theme(QObject):
         self._path = path
 
         with open(os.path.join(self._path, "theme.json")) as f:
+            Logger.log("d", "Loading theme file: %s", os.path.join(self._path, "theme.json"))
             data = json.load(f)
 
         self._initializeDefaults()
@@ -142,12 +142,8 @@ class Theme(QObject):
         if "fonts" in data:
             for name, font in data["fonts"].items():
                 f = QFont()
+                f.setFamily(font.get("family", QCoreApplication.instance().font().family()))
 
-                if not sys.platform == "win32":
-                    # Excluding windows here as a workaround for bad font rendering
-                    f.setFamily(font.get("family", QCoreApplication.instance().font().family()))
-
-                f.setStyleName(font.get("style", "Regular"))
                 f.setBold(font.get("bold", False))
                 f.setLetterSpacing(QFont.AbsoluteSpacing, font.get("letterSpacing", 0))
                 f.setItalic(font.get("italic", False))

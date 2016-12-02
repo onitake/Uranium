@@ -9,8 +9,8 @@ import UM 1.1 as UM
 Item
 {
     id: base
-    width: Math.max(23 * UM.Theme.getSize("line").width, childrenRect.width);
-    height: Math.max(9.5 * UM.Theme.getSize("line").height, childrenRect.height);
+    width: childrenRect.width
+    height: childrenRect.height
     UM.I18nCatalog { id: catalog; name:"uranium"}
 
     // We use properties for the text as doing the bindings indirectly doesn't cause any breaks
@@ -251,7 +251,7 @@ Item
             {
                 // Validate to 0.1 mm
                 bottom: 100 * (0.1 / (UM.ActiveTool.properties.getValue("ObjectDepth") / UM.ActiveTool.properties.getValue("ScaleZ")));
-		        decimals: 4
+                decimals: 4
                 locale: "en_US"
             }
 
@@ -274,7 +274,7 @@ Item
             {
                 // Validate to 0.1 mm
                 bottom: 100 * (0.1 / (UM.ActiveTool.properties.getValue("ObjectHeight") / UM.ActiveTool.properties.getValue("ScaleY")))
-		        decimals: 4
+                decimals: 4
                 locale: "en_US"
             }
 

@@ -1,16 +1,17 @@
 # Copyright (c) 2015 Ultimaker B.V.
 # Uranium is released under the terms of the AGPLv3 or higher.
 
-import numpy
 import math
+from copy import deepcopy
+
+import numpy
 
 from UM.Math.Vector import Vector
 
-from copy import deepcopy
-
 numpy.seterr(divide="ignore")
 
-## This class is a 4x4 homogenous matrix wrapper arround numpy.
+
+## This class is a 4x4 homogeneous matrix wrapper around numpy.
 #
 # Heavily based (in most cases a straight copy with some refactoring) on the excellent
 # 'library' Transformations.py created by Christoph Gohlke.
@@ -31,23 +32,34 @@ class Matrix(object):
     # - repetition : first and last axis are same (1) or different (0).
     # - frame : rotations are applied to static (0) or rotating (1) frame.
     _AXES2TUPLE = {
-    "sxyz": (0, 0, 0, 0), "sxyx": (0, 0, 1, 0), "sxzy": (0, 1, 0, 0),
-    "sxzx": (0, 1, 1, 0), "syzx": (1, 0, 0, 0), "syzy": (1, 0, 1, 0),
-    "syxz": (1, 1, 0, 0), "syxy": (1, 1, 1, 0), "szxy": (2, 0, 0, 0),
-    "szxz": (2, 0, 1, 0), "szyx": (2, 1, 0, 0), "szyz": (2, 1, 1, 0),
-    "rzyx": (0, 0, 0, 1), "rxyx": (0, 0, 1, 1), "ryzx": (0, 1, 0, 1),
-    "rxzx": (0, 1, 1, 1), "rxzy": (1, 0, 0, 1), "ryzy": (1, 0, 1, 1),
-    "rzxy": (1, 1, 0, 1), "ryxy": (1, 1, 1, 1), "ryxz": (2, 0, 0, 1),
-    "rzxz": (2, 0, 1, 1), "rxyz": (2, 1, 0, 1), "rzyz": (2, 1, 1, 1)}
+        "sxyz": (0, 0, 0, 0), "sxyx": (0, 0, 1, 0), "sxzy": (0, 1, 0, 0),
+        "sxzx": (0, 1, 1, 0), "syzx": (1, 0, 0, 0), "syzy": (1, 0, 1, 0),
+        "syxz": (1, 1, 0, 0), "syxy": (1, 1, 1, 0), "szxy": (2, 0, 0, 0),
+        "szxz": (2, 0, 1, 0), "szyx": (2, 1, 0, 0), "szyz": (2, 1, 1, 0),
+        "rzyx": (0, 0, 0, 1), "rxyx": (0, 0, 1, 1), "ryzx": (0, 1, 0, 1),
+        "rxzx": (0, 1, 1, 1), "rxzy": (1, 0, 0, 1), "ryzy": (1, 0, 1, 1),
+        "rzxy": (1, 1, 0, 1), "ryxy": (1, 1, 1, 1), "ryxz": (2, 0, 0, 1),
+        "rzxz": (2, 0, 1, 1), "rxyz": (2, 1, 0, 1), "rzyz": (2, 1, 1, 1)
+    }
 
     # axis sequences for Euler angles
     _NEXT_AXIS = [1, 2, 0, 1]
 
     def __init__(self, data = None):
         if data is None:
-            self._data = numpy.identity(4,dtype=numpy.float32)
+            self._data = numpy.identity(4,dtype = numpy.float64)
         else:
-            self._data = numpy.array(data, copy=True, dtype=numpy.float32)
+            self._data = numpy.array(data, copy=True, dtype = numpy.float64)
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        if type(other) is not Matrix:
+            return False
+
+        if self._data is None and other._data is None:
+            return True
+        return numpy.array_equal(self._data, other._data)
 
     def at(self, x, y):
         if(x >= 4 or y >= 4 or x < 0 or y < 0):
@@ -106,7 +118,7 @@ class Matrix(object):
 
     ##  Create a 4x4 identity matrix. This overwrites any existing data.
     def setToIdentity(self):
-        self._data = numpy.identity(4,dtype=numpy.float32)
+        self._data = numpy.identity(4, dtype = numpy.float64)
 
     ##  Invert the matrix
     def invert(self):
@@ -137,7 +149,7 @@ class Matrix(object):
     ##  Set the matrix by translation vector. This overwrites any existing data.
     #   \param direction The vector by which the (unit) matrix needs to be translated.
     def setByTranslation(self, direction):
-        M = numpy.identity(4,dtype=numpy.float32)
+        M = numpy.identity(4,dtype = numpy.float64)
         M[:3, 3] = direction.getData()[:3]
         self._data = M
 
@@ -170,12 +182,12 @@ class Matrix(object):
         direction_data *= sina
         R += numpy.array([[ 0.0, -direction_data[2], direction_data[1]],
                         [ direction_data[2], 0.0, -direction_data[0]],
-                        [-direction_data[1], direction_data[0], 0.0]],dtype=numpy.float32)
+                        [-direction_data[1], direction_data[0], 0.0]], dtype = numpy.float64)
         M = numpy.identity(4)
         M[:3, :3] = R
         if point is not None:
             # rotation not around origin
-            point = numpy.array(point[:3], dtype=numpy.float32, copy=False)
+            point = numpy.array(point[:3], dtype = numpy.float64, copy=False)
             M[:3, 3] = point - numpy.dot(R, point)
         self._data = M
 
@@ -186,7 +198,8 @@ class Matrix(object):
     #   @param angles : list of Euler angles about static x, y, z axes
     #   @param translate : translation vector along x, y, z axes
     #   @param perspective : perspective partition of matrix
-    def compose(self, scale = None, shear = None, angles = None, translate = None, perspective = None):
+    #   @param mirror: vector with mirror factors (1 if that axis is not mirrored, -1 if it is)
+    def compose(self, scale = None, shear = None, angles = None, translate = None, perspective = None, mirror = None):
         M = numpy.identity(4)
         if perspective is not None:
             P = numpy.identity(4)
@@ -212,6 +225,12 @@ class Matrix(object):
             S[1, 1] = scale.y
             S[2, 2] = scale.z
             M = numpy.dot(M, S)
+        if mirror is not None:
+            mir = numpy.identity(4)
+            mir[0, 0] *= mirror.x
+            mir[1, 1] *= mirror.y
+            mir[2, 2] *= mirror.z
+            M = numpy.dot(M, mir)
         M /= M[3, 3]
         self._data = M
 
@@ -229,7 +248,7 @@ class Matrix(object):
         j = self._NEXT_AXIS[i + parity]
         k = self._NEXT_AXIS[i - parity + 1]
 
-        M = numpy.array(self._data, dtype = numpy.float32, copy = False)[:3, :3]
+        M = numpy.array(self._data, dtype = numpy.float64, copy = False)[:3, :3]
         if repetition:
             sy = math.sqrt(M[i, j] * M[i, j] + M[i, k] * M[i, k])
             if sy > self._EPS:
@@ -329,7 +348,7 @@ class Matrix(object):
             # nonuniform scaling
             direction_data = direction.getData()
             factor = 1.0 - factor
-            M = numpy.identity(4,dtype=numpy.float32)
+            M = numpy.identity(4,dtype = numpy.float64)
             M[:3, :3] -= factor * numpy.outer(direction_data, direction_data)
             if origin is not None:
                 M[:3, 3] = (factor * numpy.dot(origin[:3], direction_data)) * direction_data
@@ -381,7 +400,7 @@ class Matrix(object):
     #   @return Tuple containing scale (vector), shear (vector), angles (vector) and translation (vector)
     #   It will raise a ValueError if matrix is of wrong type or degenerative.
     def decompose(self):
-        M = numpy.array(self._data, dtype = numpy.float32, copy = True).T
+        M = numpy.array(self._data, dtype = numpy.float64, copy = True).T
         if abs(M[3, 3]) < self._EPS:
             raise ValueError("M[3, 3] is zero")
         M /= M[3, 3]
@@ -393,6 +412,7 @@ class Matrix(object):
         scale = numpy.zeros((3, ))
         shear = [0.0, 0.0, 0.0]
         angles = [0.0, 0.0, 0.0]
+        mirror = [1, 1, 1]
 
         translate = M[3, :3].copy()
         M[3, :3] = 0.0
@@ -417,6 +437,14 @@ class Matrix(object):
             numpy.negative(scale, scale)
             numpy.negative(row, row)
 
+        # If the scale was negative, we give back a seperate mirror vector to indicate this.
+        if M[0, 0] < 0:
+            mirror[0] = -1
+        if M[1, 1] < 0:
+            mirror[1] = -1
+        if M[2, 2] < 0:
+            mirror[2] = -1
+
         angles[1] = math.asin(-row[0, 2])
         if math.cos(angles[1]):
             angles[0] = math.atan2(row[1, 2], row[2, 2])
@@ -425,7 +453,7 @@ class Matrix(object):
             angles[0] = math.atan2(-row[2, 1], row[1, 1])
             angles[2] = 0.0
 
-        return Vector(data = scale), Vector(data = shear), Vector(data = angles), Vector(data = translate)
+        return Vector(data = scale), Vector(data = shear), Vector(data = angles), Vector(data = translate), Vector(data = mirror)
 
     def _unitVector(self, data, axis=None, out=None):
         """Return ndarray normalized by length, i.e. Euclidean norm, along axis.
@@ -454,13 +482,13 @@ class Matrix(object):
 
         """
         if out is None:
-            data = numpy.array(data, dtype=numpy.float32, copy=True)
+            data = numpy.array(data, dtype = numpy.float64, copy = True)
             if data.ndim == 1:
                 data /= math.sqrt(numpy.dot(data, data))
                 return data
         else:
             if out is not data:
-                out[:] = numpy.array(data, copy=False)
+                out[:] = numpy.array(data, copy = False)
             data = out
         length = numpy.atleast_1d(numpy.sum(data*data, axis))
         numpy.sqrt(length, length)
@@ -475,14 +503,14 @@ class Matrix(object):
 
     @staticmethod
     def fromPositionOrientationScale(position, orientation, scale):
-        s = numpy.identity(4, dtype=numpy.float32)
+        s = numpy.identity(4, dtype = numpy.float64)
         s[0, 0] = scale.x
         s[1, 1] = scale.y
         s[2, 2] = scale.z
 
         r = orientation.toMatrix().getData()
 
-        t = numpy.identity(4, dtype=numpy.float32)
+        t = numpy.identity(4, dtype = numpy.float64)
         t[0, 3] = position.x
         t[1, 3] = position.y
         t[2, 3] = position.z

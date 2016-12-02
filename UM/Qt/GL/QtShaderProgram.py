@@ -28,13 +28,15 @@ class QtShaderProgram(ShaderProgram):
         if not self._shader_program:
             self._shader_program = QOpenGLShaderProgram()
 
-        self._shader_program.addShaderFromSourceCode(QOpenGLShader.Vertex, shader)
+        if not self._shader_program.addShaderFromSourceCode(QOpenGLShader.Vertex, shader):
+            Logger.log("e", "Vertex shader failed to compile: %s", self._shader_program.log())
 
     def setFragmentShader(self, shader):
         if not self._shader_program:
             self._shader_program = QOpenGLShaderProgram()
 
-        self._shader_program.addShaderFromSourceCode(QOpenGLShader.Fragment, shader)
+        if not self._shader_program.addShaderFromSourceCode(QOpenGLShader.Fragment, shader):
+            Logger.log("e", "Fragment shader failed to compile: %s", self._shader_program.log())
 
     def build(self):
         if not self._shader_program:
@@ -42,7 +44,7 @@ class QtShaderProgram(ShaderProgram):
             return
 
         if not self._shader_program.link():
-            Logger.log("e", "Shader failed to compile!")
+            Logger.log("e", "Shader failed to link: %s", self._shader_program.log())
 
     def setUniformValue(self, name, value, **kwargs):
         if not self._shader_program:
@@ -62,10 +64,11 @@ class QtShaderProgram(ShaderProgram):
             self._setUniformValueDirect(uniform, value)
 
     def setTexture(self, texture_unit, texture):
-        if texture:
+        if texture is None:
+            if texture_unit in self._textures:
+                del self._textures[texture_unit]
+        else:
             self._textures[texture_unit] = texture
-        elif texture_unit in self._textures:
-            del self._textures[texture_unit]
 
     def enableAttribute(self, name, type, offset, stride = 0):
         if not self._shader_program:

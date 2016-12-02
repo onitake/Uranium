@@ -1,18 +1,28 @@
 # Copyright (c) 2015 Ultimaker B.V.
 # Uranium is released under the terms of the AGPLv3 or higher.
 
-from UM.Signal import Signal, SignalEmitter
-from UM.Logger import Logger
-from UM.Resources import Resources
+import configparser
 
+from UM.Signal import Signal, signalemitter
+from UM.Logger import Logger
+from UM.MimeTypeDatabase import MimeTypeDatabase, MimeType #To register the MIME type of the preference file.
 from UM.SaveFile import SaveFile
 
-import os
-import configparser
+MimeTypeDatabase.addMimeType(
+    MimeType(
+        name = "application/x-uranium-preferences",
+        comment = "Uranium Preferences File",
+        suffixes = ["cfg"],
+        preferred_suffix = "cfg"
+    )
+)
 
 ##      Preferences are application based settings that are saved for future use. 
 #       Typical preferences would be window size, standard machine, etc.
-class Preferences(SignalEmitter):
+@signalemitter
+class Preferences:
+    Version = 3
+
     def __init__(self):
         super().__init__()
 
@@ -42,6 +52,7 @@ class Preferences(SignalEmitter):
     def setDefault(self, key, default_value):
         preference = self._findPreference(key)
         if not preference: #Key not found.
+            Logger.log("w", "Tried to set the default value of non-existing setting %s.", key)
             return
         if preference.getValue() == preference.getDefault():
             self.setValue(key, default_value)
@@ -53,6 +64,8 @@ class Preferences(SignalEmitter):
         if preference:
             preference.setValue(value)
             self.preferenceChanged.emit(key)
+        else:
+            Logger.log("w", "Tried to set the value of non-existing setting %s.", key)
 
     def getValue(self, key):
         preference = self._findPreference(key)
@@ -65,6 +78,7 @@ class Preferences(SignalEmitter):
                 value = False
             return value
 
+        Logger.log("w", "Tried to get the value of non-existing setting %s.", key)
         return None
 
     def resetPreference(self, key):
@@ -95,18 +109,18 @@ class Preferences(SignalEmitter):
                 self.preferenceChanged.emit("{0}/{1}".format(group, key))
 
     def writeToFile(self, file):
-        parser = configparser.ConfigParser(interpolation = None)
+        parser = configparser.ConfigParser(interpolation = None) #pylint: disable=bad-whitespace
         for group, group_entries in self._preferences.items():
             parser[group] = {}
             for key, pref in group_entries.items():
                 if pref.getValue() != pref.getDefault():
                     parser[group][key] = str(pref.getValue())
 
-        parser["general"]["version"] = "2"
+        parser["general"]["version"] = str(Preferences.Version)
 
         try:
-            with SaveFile(file, "wt") as f:
-                parser.write(f)
+            with SaveFile(file, "wt") as save_file:
+                parser.write(save_file)
         except Exception as e:
             Logger.log("e", "Failed to write preferences to %s: %s", file, str(e))
 
@@ -143,15 +157,15 @@ class Preferences(SignalEmitter):
         if self._file and self._file == file:
             return self._parser
         try:
-            self._parser = configparser.ConfigParser(interpolation = None)
+            self._parser = configparser.ConfigParser(interpolation = None) #pylint: disable=bad-whitespace
             self._parser.read(file)
 
-            if self._parser["general"]["version"] != "2":
+            if self._parser["general"]["version"] != str(Preferences.Version):
                 Logger.log("w", "Old config file found, ignoring")
                 self._parser = None
                 return
         except Exception as e:
-            Logger.log("e" ,"An exception occured while trying to read preferences file: %s" , e)
+            Logger.log("e", "An exception occured while trying to read preferences file: %s", e)
             self._parser = None
             return
 
@@ -160,10 +174,10 @@ class Preferences(SignalEmitter):
     _instance = None
 
 class _Preference:
-    def __init__(self, name, default = None, value = None):
+    def __init__(self, name, default = None, value = None): #pylint: disable=bad-whitespace
         self._name = name
         self._default = default
-        self._value = default if value == None else value
+        self._value = default if value is None else value
 
     def getName(self):
         return self._name

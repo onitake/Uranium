@@ -1,17 +1,12 @@
 # Copyright (c) 2015 Ultimaker B.V.
 # Uranium is released under the terms of the AGPLv3 or higher.
 
-from UM.InputDevice import InputDevice
-from UM.View.View import View
 from UM.Scene.Scene import Scene
 from UM.Event import Event, MouseEvent, ToolEvent, ViewEvent
-from UM.Math.Vector import Vector
-from UM.Math.Quaternion import Quaternion
-from UM.Signal import Signal, SignalEmitter
+from UM.Signal import Signal, signalemitter
 from UM.Logger import Logger
 from UM.PluginRegistry import PluginRegistry
 
-import math
 
 ##      Glue class that holds the scene, (active) view(s), (active) tool(s) and possible user inputs.
 #
@@ -19,10 +14,12 @@ import math
 #       \sa View
 #       \sa Tool
 #       \sa Scene
-class Controller(SignalEmitter):
+@signalemitter
+class Controller():
     def __init__(self, application):
-        super().__init__() # Call super to make multiple inheritence work.
+        super().__init__()  # Call super to make multiple inheritance work.
         self._active_tool = None
+        self._tool_operation_active = False
         self._tools = {}
 
         self._input_devices = {}
@@ -56,7 +53,7 @@ class Controller(SignalEmitter):
             view.setRenderer(self._application.getRenderer())
             self.viewsChanged.emit()
         else:
-            Logger.log("w", "%s was already added to view list. Unable to add it again.",name)
+            Logger.log("w", "%s was already added to view list. Unable to add it again.", name)
 
     ##  Request view by name. Returns None if no view is found.
     #   \param name \type{string} Unique identifier of view (usually the plugin name)
@@ -64,8 +61,8 @@ class Controller(SignalEmitter):
     def getView(self, name):
         try:
             return self._views[name]
-        except KeyError: #No such view  
-            Logger.log("e", "Unable to find %s in view list",name)
+        except KeyError:  # No such view
+            Logger.log("e", "Unable to find %s in view list", name)
             return None
 
     ##  Return all views.
@@ -95,7 +92,7 @@ class Controller(SignalEmitter):
         except KeyError:
             Logger.log("e", "No view named %s found", name)
         except Exception as e:
-            Logger.log("e", "An exception occured while switching views", str(e))
+            Logger.log("e", "An exception occurred while switching views", str(e))
 
     ##  Emitted when the list of views changes.
     viewsChanged = Signal()
@@ -103,11 +100,11 @@ class Controller(SignalEmitter):
     ##  Emitted when the active view changes.
     activeViewChanged = Signal()
 
-    ##  Add an input device (eg; mouse, keyboard, etc) if it's not already addded.
+    ##  Add an input device (e.g. mouse, keyboard, etc) if it's not already added.
     #   \param device The input device to be added
     def addInputDevice(self, device):
         name = device.getPluginId()
-        if(name not in self._input_devices):
+        if name not in self._input_devices:
             self._input_devices[name] = device
             device.event.connect(self.event)
         else:
@@ -120,7 +117,7 @@ class Controller(SignalEmitter):
         try:
             return self._input_devices[name]
         except KeyError: #No such device
-            Logger.log("e", "Unable to find %s in input devices",name)
+            Logger.log("e", "Unable to find %s in input devices", name)
             return None
 
     ##  Remove an input device from the list of input devices.
@@ -138,7 +135,7 @@ class Controller(SignalEmitter):
         try:
             return self._tools[name]
         except KeyError: #No such tool
-            Logger.log("e", "Unable to find %s in tools",name)
+            Logger.log("e", "Unable to find %s in tools", name)
             return None
 
     ##  Get all tools
@@ -147,16 +144,29 @@ class Controller(SignalEmitter):
         return self._tools
 
     ##  Add a Tool (transform object, translate object) if its not already added.
-    #   \param tool \type{Tool} Tool to be added  
+    #   \param tool \type{Tool} Tool to be added
     def addTool(self, tool):
         name = tool.getPluginId()
-        if(name not in self._tools):
+        if name not in self._tools:
             self._tools[name] = tool
-            tool.operationStarted.connect(self.toolOperationStarted)
-            tool.operationStopped.connect(self.toolOperationStopped)
+            tool.operationStarted.connect(self._onToolOperationStarted)
+            tool.operationStopped.connect(self._onToolOperationStopped)
             self.toolsChanged.emit()
-        else: 
+        else:
             Logger.log("w", "%s was already added to tool list. Unable to add it again.", name)
+
+    def _onToolOperationStarted(self, tool):
+        self._tool_operation_active = True
+        self.toolOperationStarted.emit(tool)
+
+    def _onToolOperationStopped(self, tool):
+        self._tool_operation_active = False
+        self.toolOperationStopped.emit(tool)
+
+    ##  Gets whether a tool is currently in use
+    #   \return \type{bool} true if a tool current being used.
+    def isToolOperationActive(self):
+        return self._tool_operation_active
 
     ##  Request active tool. Returns None if there is no active tool
     #   \return Tool \type{Tool} if an tool is active, None otherwise.
@@ -178,9 +188,9 @@ class Controller(SignalEmitter):
             if self._active_tool:
                 self._active_tool.event(ToolEvent(ToolEvent.ToolActivateEvent))
 
-            from UM.Scene.Selection import Selection #Imported here to prevent a circular dependency.
-            if not self._active_tool and Selection.getCount() > 0: #If something is selected, a tool must always be active.
-                self._active_tool = self._tools["TranslateTool"] #Then default to the translation tool.
+            from UM.Scene.Selection import Selection  # Imported here to prevent a circular dependency.
+            if not self._active_tool and Selection.getCount() > 0:  # If something is selected, a tool must always be active.
+                self._active_tool = self._tools["TranslateTool"]  # Then default to the translation tool.
                 self._active_tool.event(ToolEvent(ToolEvent.ToolActivateEvent))
 
             self.activeToolChanged.emit()
@@ -232,22 +242,27 @@ class Controller(SignalEmitter):
 
         if self._active_view:
             self._active_view.event(event)
-            
+
         if event.type == Event.MouseReleaseEvent and MouseEvent.RightButton in event.buttons:
             self.contextMenuRequested.emit(event.x, event.y)
 
     contextMenuRequested = Signal()
 
     ##  Set the tool used for handling camera controls.
-    #   Camera tool is the first tool to recieve events.
+    #   Camera tool is the first tool to receive events.
     #   \param tool \type{Tool}
     #   \sa setSelectionTool
     #   \sa setActiveTool
     def setCameraTool(self, tool):
         self._camera_tool = self.getTool(tool)
 
+    ##  Get the camera tool (if any)
+    #   \returns camera tool (or none)
+    def getCameraTool(self):
+        return self._camera_tool
+
     ##  Set the tool used for performing selections.
-    #   Selection tool recieves its events after camera tool and active tool.
+    #   Selection tool receives its events after camera tool and active tool.
     #   \param tool \type{Tool}
     #   \sa setCameraTool
     #   \sa setActiveTool

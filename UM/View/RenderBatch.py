@@ -12,6 +12,7 @@ from UM.View.GL.OpenGL import OpenGL
 vertexBufferProperty = "__gl_vertex_buffer"
 indexBufferProperty = "__gl_index_buffer"
 
+
 ##  The RenderBatch class represent a batch of objects that should be rendered.
 #
 #   Each RenderBatch contains a list of objects to render and all state related
@@ -77,6 +78,7 @@ class RenderBatch():
 
         self._view_matrix = None
         self._projection_matrix = None
+        self._view_projection_matrix = None
 
         self._gl = OpenGL.getInstance().getBindingsObject()
 
@@ -137,8 +139,11 @@ class RenderBatch():
     #   \param uniforms A dict of additional uniform bindings to set when rendering the item.
     #                   Note these are set specifically for this item.
     def addItem(self, transformation, mesh, uniforms = None):
-        if not transformation or not mesh:
-            Logger.log("w", "Tried to add an item to batch without transformation or mesh")
+        if not transformation:
+            Logger.log("w", "Tried to add an item to batch without transformation")
+            return
+        if not mesh:
+            Logger.log("w", "Tried to add an item to batch without mesh")
             return
 
         self._items.append({ "transformation": transformation, "mesh": mesh, "uniforms": uniforms})

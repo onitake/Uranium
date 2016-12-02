@@ -3,7 +3,13 @@
 
 from UM.Signal import Signal
 from UM.Math.Vector import Vector
+from UM.Math.AxisAlignedBox import AxisAlignedBox
+from UM.Scene.SceneNode import SceneNode
+
 from UM.Operations.GroupedOperation import GroupedOperation
+
+import copy
+
 
 ##    This class is responsible for keeping track of what objects are selected
 #     It uses signals to notify others of changes in the selection
@@ -36,6 +42,23 @@ class Selection:
         return cls.__selection
 
     @classmethod
+    def getBoundingBox(cls):
+        bounding_box = None # don't start with an empty bounding box, because that includes (0,0,0)
+        for node in cls.__selection:
+            if type(node) is not SceneNode:
+                continue
+
+            if not bounding_box:
+                bounding_box = node.getBoundingBox()
+            else:
+                bounding_box = bounding_box + node.getBoundingBox()
+
+        if not bounding_box:
+            bounding_box = AxisAlignedBox.Null
+
+        return bounding_box
+
+    @classmethod
     ##  Get selected object by index
     #   \param index index of the objectto return
     #   \returns selected object or None if index was incorrect / not found
@@ -66,7 +89,7 @@ class Selection:
     @classmethod
     def getSelectionCenter(cls):
         if not cls.__selection:
-            cls.__selection_center = Vector(0, 0, 0)
+            cls.__selection_center = Vector.Null
 
         return cls.__selection_center
 
@@ -87,7 +110,6 @@ class Selection:
         if not cls.__selection:
             return
 
-        op = None
         operations = []
 
         if len(cls.__selection) == 1:
@@ -107,12 +129,12 @@ class Selection:
 
     @classmethod
     def _onTransformationChanged(cls, node):
-        cls.__selection_center = Vector(0, 0, 0)
+        cls.__selection_center = Vector.Null
 
         for object in cls.__selection:
-            cls.__selection_center += object.getWorldPosition()
+            cls.__selection_center = cls.__selection_center + object.getWorldPosition()
 
-        cls.__selection_center /= len(cls.__selection)
+        cls.__selection_center = cls.__selection_center / len(cls.__selection)
 
         cls.selectionCenterChanged.emit()
 

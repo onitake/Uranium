@@ -6,7 +6,7 @@ import os
 import signal
 import platform
 
-from PyQt5.QtCore import Qt, QObject, QCoreApplication, QEvent, pyqtSlot, QLocale, QTranslator, QLibraryInfo, PYQT_VERSION_STR
+from PyQt5.QtCore import Qt, QObject, QCoreApplication, QEvent, pyqtSlot, QLocale, QTranslator, QLibraryInfo, QT_VERSION_STR, PYQT_VERSION_STR
 from PyQt5.QtQml import QQmlApplicationEngine, qmlRegisterType, qmlRegisterSingletonType
 from PyQt5.QtWidgets import QApplication, QSplashScreen
 from PyQt5.QtGui import QGuiApplication, QPixmap
@@ -15,12 +15,14 @@ from PyQt5.QtCore import QTimer
 from UM.Application import Application
 from UM.Qt.QtRenderer import QtRenderer
 from UM.Qt.Bindings.Bindings import Bindings
-from UM.JobQueue import JobQueue
-from UM.Signal import Signal, SignalEmitter
+from UM.Signal import Signal, signalemitter
 from UM.Resources import Resources
 from UM.Logger import Logger
 from UM.Preferences import Preferences
 from UM.i18n import i18nCatalog
+import UM.Settings.InstanceContainer #For version upgrade to know the version number.
+import UM.Settings.ContainerStack #For version upgrade to know the version number.
+import UM.Preferences #For version upgrade to know the version number.
 
 # Raised when we try to use an unsupported version of a dependency.
 class UnsupportedVersionError(Exception):
@@ -32,7 +34,8 @@ if int(major) < 5 or int(minor) < 4:
     raise UnsupportedVersionError("This application requires at least PyQt 5.4.0")
 
 ##  Application subclass that provides a Qt application object.
-class QtApplication(QApplication, Application, SignalEmitter):
+@signalemitter
+class QtApplication(QApplication, Application):
     def __init__(self, **kwargs):
         plugin_path = ""
         if sys.platform == "win32":
@@ -60,6 +63,11 @@ class QtApplication(QApplication, Application, SignalEmitter):
         self._renderer = None
         self._main_window = None
 
+        self._shutting_down = False
+        self._qml_import_paths = []
+        self._qml_import_paths.append(os.path.join(os.path.dirname(sys.executable), "qml"))
+        self._qml_import_paths.append(os.path.join(Application.getInstallPrefix(), "Resources", "qml"))
+
         self.setAttribute(Qt.AA_UseDesktopOpenGL)
 
         try:
@@ -82,9 +90,16 @@ class QtApplication(QApplication, Application, SignalEmitter):
         Logger.log("i", "Command line arguments: %s", self._parsed_command_line)
         self._plugin_registry.checkRequiredPlugins(self.getRequiredPlugins())
 
-        self.showSplashMessage(i18n_catalog.i18nc("@info:progress", "Loading machines..."))
+        self.showSplashMessage(i18n_catalog.i18nc("@info:progress", "Updating configuration..."))
+        upgraded = UM.VersionUpgradeManager.VersionUpgradeManager.getInstance().upgrade()
+        if upgraded:
+            preferences = UM.Preferences.getInstance() #Preferences might have changed. Load them again.
+                                                       #Note that the language can't be updated, so that will always revert to English.
+            try:
+                preferences.readFromFile(Resources.getPath(Resources.Preferences, self._application_name + ".cfg"))
+            except FileNotFoundError:
+                pass
 
-        self.getMachineManager().loadAll()
 
         self.showSplashMessage(i18n_catalog.i18nc("@info:progress", "Loading preferences..."))
         try:
@@ -95,13 +110,13 @@ class QtApplication(QApplication, Application, SignalEmitter):
 
     def run(self):
         pass
-    
+
     def hideMessage(self, message):
         with self._message_lock:
             if message in self._visible_messages:
                 self._visible_messages.remove(message)
                 self.visibleMessageRemoved.emit(message)
-    
+
     def showMessage(self, message):
         with self._message_lock:
             if message not in self._visible_messages:
@@ -118,19 +133,25 @@ class QtApplication(QApplication, Application, SignalEmitter):
 
         self._engine = QQmlApplicationEngine()
 
-        
-        self._engine.addImportPath(os.path.join(os.path.dirname(sys.executable), "qml"))
-        self._engine.addImportPath(os.path.join(Application.getInstallPrefix(), "Resources", "qml"))
+        for path in self._qml_import_paths:
+            self._engine.addImportPath(path)
+
         if not hasattr(sys, "frozen"):
             self._engine.addImportPath(os.path.join(os.path.dirname(__file__), "qml"))
 
+        self._engine.rootContext().setContextProperty("QT_VERSION_STR", QT_VERSION_STR)
+        self._engine.rootContext().setContextProperty("screenScaleFactor", self._screenScaleFactor())
+
         self.registerObjects(self._engine)
-        
+
         self._engine.load(self._main_qml)
         self.engineCreatedSignal.emit()
-    
+
     engineCreatedSignal = Signal()
-    
+
+    def isShuttingDown(self):
+        return self._shutting_down
+
     def registerObjects(self, engine):
         pass
 
@@ -175,10 +196,7 @@ class QtApplication(QApplication, Application, SignalEmitter):
 
     def windowClosed(self):
         Logger.log("d", "Shutting down %s", self.getApplicationName())
-        try:
-            self.getMachineManager().saveAll()
-        except Exception as e:
-            Logger.log("e", "Exception while saving machines: %s", repr(e))
+        self._shutting_down = True
 
         try:
             Preferences.getInstance().writeToFile(Resources.getStoragePath(Resources.Preferences, self.getApplicationName() + ".cfg"))
@@ -255,6 +273,12 @@ class QtApplication(QApplication, Application, SignalEmitter):
 
     def _createSplashScreen(self):
         return QSplashScreen(QPixmap(Resources.getPath(Resources.Images, self.getApplicationName() + ".png")))
+
+    def _screenScaleFactor(self):
+        physical_dpi = QGuiApplication.primaryScreen().physicalDotsPerInch()
+        # Typically 'normal' screens have a DPI around 96. Modern high DPI screens are up around 220.
+        # We scale the low DPI screens with a traditional 1, and double the high DPI ones.
+        return 1.0 if physical_dpi < 150 else 2.0
 
     def _getDefaultLanguage(self, file):
         # If we have a language override set in the environment, try and use that.

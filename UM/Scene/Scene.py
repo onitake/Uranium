@@ -3,17 +3,19 @@
 
 from UM.Scene.SceneNode import SceneNode
 from UM.Scene.Camera import Camera
-from UM.Signal import Signal, SignalEmitter
+from UM.Signal import Signal, signalemitter
 from UM.Scene.Iterator.BreadthFirstIterator import BreadthFirstIterator
 
 import threading
 
+
 ##  Container object for the scene graph.
 #
 #   The main purpose of this class is to provide the root SceneNode.
-class Scene(SignalEmitter):
+@signalemitter
+class Scene():
     def __init__(self):
-        super().__init__() # Call super to make multiple inheritence work.
+        super().__init__() # Call super to make multiple inheritance work.
 
         self._root = SceneNode()
         self._root.setCalculateBoundingBox(False)

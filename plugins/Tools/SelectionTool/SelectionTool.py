@@ -4,13 +4,17 @@
 from UM.Event import MouseEvent, KeyEvent
 from UM.Tool import Tool
 from UM.Application import Application
-from UM.Scene.BoxRenderer import BoxRenderer
-from UM.Scene.RayRenderer import RayRenderer
 from UM.Scene.Selection import Selection
 from UM.Scene.Iterator.BreadthFirstIterator import BreadthFirstIterator
 
 from PyQt5.QtGui import qAlpha, qRed, qGreen, qBlue
 from PyQt5 import QtCore, QtWidgets
+
+##  Provides the tool to select meshes and groups
+#
+#   Note that the tool has two implementations for different modes of selection:
+#   Pixel Selection Mode and BoundingBox Selection Mode. Of these two, only Pixel Selection Mode
+#   is in active use. BoundingBox Selection Mode may not be functional.
 
 class SelectionTool(Tool):
     PixelSelectionMode = 1
@@ -25,28 +29,48 @@ class SelectionTool(Tool):
         self._selection_pass = None
 
         self._selection_mode = self.PixelSelectionMode
-        self._ctrl_is_active = None
-    
+        self._ctrl_is_active = None # Ctrl modifier key is used for sub-selection
+        self._alt_is_active = None
+        self._shift_is_active = None # Shift modifier key is used for multi-selection
+
+    ##  Prepare modifier-key variables on each event
+    #
+    #   \param event type(Event) event passed from event handler
     def checkModifierKeys(self, event):
         modifiers = QtWidgets.QApplication.keyboardModifiers()
-        self._ctrl_is_active = modifiers == QtCore.Qt.ControlModifier
+        self._shift_is_active = modifiers & QtCore.Qt.ShiftModifier
+        self._ctrl_is_active = modifiers & QtCore.Qt.ControlModifier
+        self._alt_is_active = modifiers & QtCore.Qt.AltModifier
 
+
+    ##  Set the selection mode
+    #
+    #   The tool has two implementations for different modes of selection: PixelSelectionMode and BoundingboxSelectionMode.
+    #   Of these two, only Pixel Selection Mode is in active use. BoundingBox Selection Mode may not be functional.
+    #   \param mode type(SelectionTool enum)
     def setSelectionMode(self, mode):
         self._selection_mode = mode
 
+    ##  Handle mouse and keyboard events
+    #
+    #   \param event type(Event)
     def event(self, event):
+        # The selection renderpass is used to identify objects in the current view
         if self._selection_pass is None:
             self._selection_pass = self._renderer.getRenderPass("selection")
 
         self.checkModifierKeys(event)
         if event.type == MouseEvent.MousePressEvent and MouseEvent.LeftButton in event.buttons and self._controller.getToolsEnabled():
+            # Perform a selection operation
             if self._selection_mode == self.PixelSelectionMode:
                 self._pixelSelection(event)
             else:
                 self._boundingBoxSelection(event)
-
         return False
 
+    ##  Handle mouse and keyboard events for bounding box selection
+    #
+    #   \param event type(Event) passed from self.event()
     def _boundingBoxSelection(self, event):
         root = self._scene.getRoot()
 
@@ -64,48 +88,74 @@ class SelectionTool(Tool):
 
             node = intersections[0][0]
             if not Selection.isSelected(node):
-                if not self._ctrl_is_active:
+                if not self._shift_is_active:
                     Selection.clear()
                 Selection.add(node)
         else:
             Selection.clear()
 
+    ##  Handle mouse and keyboard events for pixel selection
+    #
+    #   \param event type(Event) passed from self.event()
     def _pixelSelection(self, event):
+        # Find a node id by looking at a pixel value at the requested location
         item_id = self._selection_pass.getIdAtPosition(event.x, event.y)
 
-        if not item_id:
+        if not item_id and not self._shift_is_active:
             Selection.clear()
             return
 
+        # Find the scene-node which matches the node-id
         for node in BreadthFirstIterator(self._scene.getRoot()):
             if id(node) == item_id:
-                if self._ctrl_is_active:
-                    if Selection.isSelected(node):
+                if self._isNodeInGroup(node):
+                    is_selected = Selection.isSelected(self._findTopGroupNode(node))
+                else:
+                    is_selected = Selection.isSelected(node)
+                if self._shift_is_active:
+                    if is_selected:
+                        # Deselect the scenenode and its sibblings in a group
                         if node.getParent():
-                            group_node = node.getParent()
-                            if not group_node.callDecoration("isGroup"):
+                            if self._ctrl_is_active or not self._isNodeInGroup(node):
                                 Selection.remove(node)
                             else:
-                                while group_node.getParent().callDecoration("isGroup"):
-                                    group_node = group_node.getParent()
-                                Selection.remove(group_node)
+                                Selection.remove(self._findTopGroupNode(node))
                     else:
+                        # Select the scenenode and its sibblings in a group
                         if node.getParent():
-                            group_node = node.getParent()
-                            if not group_node.callDecoration("isGroup"):
+                            if self._ctrl_is_active or not self._isNodeInGroup(node):
                                 Selection.add(node)
                             else:
-                                while group_node.getParent().callDecoration("isGroup"):
-                                    group_node = group_node.getParent()
-                                Selection.add(group_node)
+                                Selection.add(self._findTopGroupNode(node))
                 else:
-                    if not Selection.isSelected(node) or Selection.getCount() > 1:
+                    if not is_selected or Selection.getCount() > 1:
+                        # Select only the scenenode and its sibblings in a group
                         Selection.clear()
                         if node.getParent():
-                            group_node = node.getParent()
-                            if not group_node.callDecoration("isGroup"):
+                            if self._ctrl_is_active or not self._isNodeInGroup(node):
                                 Selection.add(node)
                             else:
-                                while group_node.getParent().callDecoration("isGroup"):
-                                    group_node = group_node.getParent()
-                                Selection.add(group_node)
+                                Selection.add(self._findTopGroupNode(node))
+                    elif self._isNodeInGroup(node) and self._ctrl_is_active:
+                        Selection.clear()
+                        Selection.add(node)
+
+    ##  Check whether a node is in a group
+    #
+    #   \param node type(SceneNode)
+    #   \return in_group type(boolean)
+    def _isNodeInGroup(self, node):
+        parent_node = node.getParent()
+        if not parent_node:
+            return False
+        return parent_node.callDecoration("isGroup")
+
+    ##  Get the top root group for a node
+    #
+    #   \param node type(SceneNode)
+    #   \return group type(SceneNode)
+    def _findTopGroupNode(self, node):
+        group_node = node
+        while group_node.getParent().callDecoration("isGroup"):
+            group_node = group_node.getParent()
+        return group_node

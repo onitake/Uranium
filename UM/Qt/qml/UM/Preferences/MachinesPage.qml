@@ -19,7 +19,9 @@ ManagementPage {
     onAddObject: model.requestAddMachine();
     onRemoveObject: confirmDialog.open();
     onRenameObject: renameDialog.open();
+    onActivateObject: if (activateEnabled) { UM.MachineManager.setActiveMachineInstance(currentItem.name) }
 
+    activateEnabled: currentItem != null && !currentItem.active
     removeEnabled: numInstances > 1
     renameEnabled: numInstances > 0
 
@@ -27,7 +29,12 @@ ManagementPage {
         anchors.fill: parent;
         spacing: UM.Theme.getSize("default_margin").height;
 
-        Label { text: base.currentItem && base.currentItem.name ? base.currentItem.name : ""; font: UM.Theme.getFont("large"); width: parent.width; }
+        Label {
+            text: base.currentItem && base.currentItem.name ? base.currentItem.name : ""
+            font: UM.Theme.getFont("large")
+            width: parent.width
+            elide: Text.ElideRight
+        }
 
         Label { text: catalog.i18nc("@label", "Type"); width: parent.width * 0.2; }
         Label { text: base.currentItem && base.currentItem.typeName ? base.currentItem.typeName : ""; width: parent.width * 0.7; }
@@ -37,7 +44,10 @@ ManagementPage {
         ConfirmRemoveDialog {
             id: confirmDialog;
             object: base.currentItem && base.currentItem.name ? base.currentItem.name : "";
-            onYes: base.model.removeMachineInstance(base.currentItem.name);
+            onYes: {
+                base.model.removeMachineInstance(base.currentItem.name);
+                base.objectList.currentIndex = base.activeIndex();
+            }
         }
         RenameDialog {
             id: renameDialog;
