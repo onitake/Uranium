@@ -1,2 +1,2 @@
 scripts /usr/share/uranium
-/usr/lib/cmake/*
+cmake /usr/share/uranium

@@ -1,11 +1,11 @@
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -49,7 +49,7 @@
+@@ -48,8 +48,6 @@
+ else()
      install(DIRECTORY UM DESTINATION lib/python${PYTHON_VERSION_MAJOR}/dist-packages)
  endif()
- install(FILES ${CMAKE_SOURCE_DIR}/cmake/UraniumTranslationTools.cmake
+-install(FILES ${CMAKE_SOURCE_DIR}/cmake/UraniumTranslationTools.cmake
 -        DESTINATION ${CMAKE_INSTALL_DATADIR}/cmake-${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}/Modules/ )
-+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/UraniumTranslationTools )
  install(DIRECTORY resources DESTINATION ${CMAKE_INSTALL_DATADIR}/uranium)
  install(DIRECTORY plugins DESTINATION lib/uranium)
  
