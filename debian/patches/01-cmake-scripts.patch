@@ -1,3 +1,10 @@
+Author: Gregor Riepl <onitake@gmail.com>
+Description: Removes cmake scripts installation rule.
+  CMAKE_INSTALL_DATADIR is a architecture- and cmake package
+  dependent location. On top of that, these scripts are
+  highly specific to Uranium.
+  Instead, we install them to /usr/share/Uranium/cmake via
+  a custom debian/.install file.
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -48,8 +48,6 @@
