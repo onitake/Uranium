@@ -7,8 +7,8 @@ Standards-Version: 3.9.8
 Section: python
 X-Python3-Version: >= 3.4
 Homepage: https://github.com/Ultimaker/Uranium
-Vcs-Git: https://github.com/Ultimaker/Uranium
-Vcs-Browser: https://github.com/Ultimaker/Uranium
+Vcs-Git: https://github.com/onitake/Uranium
+Vcs-Browser: https://github.com/onitake/Uranium
 
 Package: python3-uranium
 Architecture: all
