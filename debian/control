@@ -23,6 +23,10 @@ XB-Python3-Version:
  ${python3:Versions}
 Description: application framework for Cura (python library)
  Uranium is a Python framework for building 3D printing related applications.
+ .
+ It is mainly used by Cura.
+ .
+ This package contains the base library for Python 3.
 
 Package: uranium-plugins
 Architecture: all
@@ -30,6 +34,10 @@ Depends: ${shlibs:Depends}, ${python3:Depends}, ${misc:Depends},
  python3-uranium (= ${binary:Version})
 Description: application framework for Cura (plugins)
  Uranium is a Python framework for building 3D printing related applications.
+ .
+ It is mainly used by Cura.
+ .
+ This package contains GUI plugins.
 
 Package: uranium-tools
 Architecture: all
@@ -37,3 +45,7 @@ Section: devel
 Depends: ${shlibs:Depends}, ${python3:Depends}, ${misc:Depends}
 Description: application framework for Cura (development tools)
  Uranium is a Python framework for building 3D printing related applications.
+ .
+ It is mainly used by Cura.
+ .
+ This package contains related development tools and cmake scripts.
