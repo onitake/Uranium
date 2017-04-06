@@ -4,6 +4,7 @@
 from UM.Math.Matrix import Matrix
 from UM.Math.Vector import Vector
 from UM.Math.Quaternion import Quaternion
+from UM.Math.AxisAlignedBox import AxisAlignedBox
 
 from UM.Signal import Signal, signalemitter
 from UM.Mesh.MeshBuilder import MeshBuilder
@@ -83,6 +84,7 @@ class SceneNode():
         copy.setMeshData(self._mesh_data)
         copy.setVisible(deepcopy(self._visible, memo))
         copy._selectable = deepcopy(self._selectable, memo)
+        copy._name = deepcopy(self._name, memo)
         for decorator in self._decorators:
             copy.addDecorator(deepcopy(decorator, memo))
 
@@ -192,6 +194,8 @@ class SceneNode():
 
     ##  Remove all decorators
     def removeDecorators(self):
+        for decorator in self._decorators:
+            decorator.clear()
         self._decorators = []
         self.decoratorsChanged.emit(self)
 
@@ -200,6 +204,7 @@ class SceneNode():
     def removeDecorator(self, dec_type):
         for decorator in self._decorators:
             if type(decorator) == dec_type:
+                decorator.clear()
                 self._decorators.remove(decorator)
                 self.decoratorsChanged.emit(self)
                 break
@@ -485,9 +490,10 @@ class SceneNode():
         elif transform_space == SceneNode.TransformSpace.Parent:
             self._transformation.preMultiply(translation_matrix)
         elif transform_space == SceneNode.TransformSpace.World:
+            world_transformation = deepcopy(self._world_transformation)
             self._transformation.multiply(self._world_transformation.getInverse())
             self._transformation.multiply(translation_matrix)
-            self._transformation.multiply(self._world_transformation)
+            self._transformation.multiply(world_transformation)
         self._transformChanged()
 
     ##  Set the local position value.
@@ -502,7 +508,7 @@ class SceneNode():
         if transform_space == SceneNode.TransformSpace.World:
             if self.getWorldPosition() == position:
                 return
-            self.translate(position - (self._position + self._parent.getPosition()), SceneNode.TransformSpace.World)
+            self.translate(position - self._derived_position, SceneNode.TransformSpace.World)
 
     ##  Signal. Emitted whenever the transformation of this object or any child object changes.
     #   \param object The object that caused the change.
@@ -545,10 +551,7 @@ class SceneNode():
 
     ##  Get whether this SceneNode is enabled, that is, it can be modified in any way.
     def isEnabled(self):
-        if self._parent != None and self._enabled:
-            return self._parent.isEnabled()
-        else:
-            return self._enabled
+        return self._enabled
 
     ##  Set whether this SceneNode is enabled.
     #   \param enable True if this object should be enabled, False if not.
@@ -642,6 +645,11 @@ class SceneNode():
         if self._mesh_data:
             aabb = self._mesh_data.getExtents(self.getWorldTransformation())
             original_aabb = self._mesh_data.getExtents()
+        else: # If there is no mesh_data, use a boundingbox that encompasses the local (0,0,0)
+            position = self.getWorldPosition()
+            aabb = AxisAlignedBox(minimum = position, maximum = position)
+            original_aabb = AxisAlignedBox(minimum = position, maximum = position)
+
         for child in self._children:
             if aabb is None:
                 aabb = child.getBoundingBox()

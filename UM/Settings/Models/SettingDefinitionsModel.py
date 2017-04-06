@@ -48,7 +48,7 @@ class SettingDefinitionsModel(QAbstractListModel):
         self._exclude = set()
 
         self._show_all = False
-
+        self._show_ancestors = False
         self._visibility_handler = None
 
         self._filter_dict = {}
@@ -63,6 +63,20 @@ class SettingDefinitionsModel(QAbstractListModel):
         for name in UM.Settings.SettingDefinition.getPropertyNames():
             self._role_names[index] = name.encode()
             index += 1
+
+    ##  Emitted whenever the showAncestors property changes.
+    showAncestorsChanged = pyqtSignal()
+
+    def setShowAncestors(self, show_ancestors):
+        if show_ancestors != self._show_ancestors:
+            self._show_ancestors = show_ancestors
+            self._update()
+            self.showAncestorsChanged.emit()
+
+    @pyqtProperty(bool, fset=setShowAncestors, notify=showAncestorsChanged)
+    # Should we still show ancestors, even if filter says otherwise?
+    def showAncestors(self):
+        self._show_ancestors
 
     ##  Set the containerId property.
     def setContainerId(self, container_id):
@@ -468,12 +482,9 @@ class SettingDefinitionsModel(QAbstractListModel):
 
         # Try and find a translation catalog for the definition
         for file_name in self._container.getInheritedFiles():
-            try:
-                # See if the file exist. TODO: proper check if the file is loadable as well.
-                i18n_file = Resources.getPath(Resources.i18n, "en", "LC_MESSAGES", os.path.basename(file_name) + ".mo")
-                self._i18n_catalog = i18nCatalog(os.path.basename(file_name))
-            except FileNotFoundError:
-                continue
+            catalog = i18nCatalog(os.path.basename(file_name))
+            if catalog.hasTranslationLoaded():
+                self._i18n_catalog = catalog
 
         self.beginResetModel()
 
@@ -544,7 +555,13 @@ class SettingDefinitionsModel(QAbstractListModel):
             return False
 
         # If it does not match the current filter, it should not be shown.
-        if self._filter_dict and not definition.matchesFilter(**self._filter_dict):
+        filter = self._filter_dict.copy()
+        filter["i18n_catalog"] = self._i18n_catalog
+
+        if self._filter_dict and not definition.matchesFilter(**filter):
+            if self._show_ancestors:
+                if self._isAnyDescendantFiltered(definition):
+                    return True
             return False
 
         # We should not show categories that are empty
@@ -554,16 +571,29 @@ class SettingDefinitionsModel(QAbstractListModel):
 
         return True
 
+    def _isAnyDescendantFiltered(self, definition):
+        filter = self._filter_dict.copy()
+        filter["i18n_catalog"] = self._i18n_catalog
+        for child in definition.children:
+            if self._isAnyDescendantFiltered(child):
+                return True
+            if self._filter_dict and child.matchesFilter(**filter):
+                return True
+        return False
+
+
     # Determines if any child of a definition is visible.
     def _isAnyDescendantVisible(self, definition):
         if self._show_all:
             return True
 
+        filter = self._filter_dict.copy()
+        filter["i18n_catalog"] = self._i18n_catalog
         for child in definition.children:
             if child.key in self._exclude:
                 continue
 
-            if self._filter_dict and not child.matchesFilter(**self._filter_dict):
+            if self._filter_dict and not child.matchesFilter(**filter):
                 continue
 
             if child.key in self._visible:

@@ -3,6 +3,7 @@
 
 import collections #For deque, for breadth-first search and to track tasks, and namedtuple.
 import os #To get the configuration file names and to rename files.
+import traceback
 
 from UM.Logger import Logger
 from UM.PluginRegistry import PluginRegistry #To find plug-ins.
@@ -97,8 +98,7 @@ class VersionUpgradeManager:
     #   date.
     def upgrade(self):
         Logger.log("i", "Looking for old configuration files to upgrade.")
-        for upgrade_task in self._getUpgradeTasks(): #Get the initial files to upgrade.
-            self._upgrade_tasks.append(upgrade_task)
+        self._upgrade_tasks.extend(self._getUpgradeTasks())     #Get the initial files to upgrade.
         self._upgrade_routes = self._findShortestUpgradeRoutes() #Pre-compute the upgrade routes.
 
         upgraded = False #Did we upgrade something?
@@ -193,41 +193,36 @@ class VersionUpgradeManager:
 
         return result
 
-    ##  Get the filenames of all files in a specified directory and its
-    #   subdirectories.
+    ##  Get the filenames of all files in a specified directory.
     #
     #   If an exclude path is given, the specified path is ignored (relative to
     #   the specified directory).
     #
     #   \param directory The directory to read the files from.
-    #   \param exclude_paths (Optional) A list of paths, relative to the
-    #   specified directory, to directories which must be excluded from the
-    #   result.
     #   \return The filename of each file relative to the specified directory.
-    def _getFilesInDirectory(self, directory, exclude_paths = None):
-        if not exclude_paths:
-            exclude_paths = []
-        exclude_paths = [os.path.join(directory, exclude_path) for exclude_path in exclude_paths] #Prepend the specified directory before each exclude path.
+    def _getFilesInDirectory(self, directory):
+        result = []
         for (path, directory_names, filenames) in os.walk(directory, topdown=True):
-            directory_names[:] = [directory_name for directory_name in directory_names if os.path.join(path, directory_name) not in exclude_paths] #Prune the exclude paths.
+            directory_names[:] = [] # Only go to one level.
             for filename in filenames:
                 relative_path = os.path.relpath(path, directory)
-                yield os.path.join(relative_path, filename)
+                result.append(os.path.join(relative_path, filename))
+        return result
 
     ##  Gets all files that need to be upgraded.
     #
-    #   \return A generator of UpgradeTasks of files to upgrade.
+    #   \return A list of UpgradeTasks of files to upgrade.
     def _getUpgradeTasks(self):
-        exclude_folders = ["old", "cache", "plugins"]
+        result = []
+        storage_path_prefixes = set()
+        storage_path_prefixes.add(Resources.getConfigStoragePath())
         for old_configuration_type, storage_paths in self._storage_paths.items():
-            storage_path_prefixes = set(Resources.getSearchPaths()) #Set removes duplicates.
-            storage_path_prefixes.add(Resources.getConfigStoragePath())
-            storage_path_prefixes.add(Resources.getDataStoragePath())
             for prefix in storage_path_prefixes:
                 for storage_path in storage_paths:
                     path = os.path.join(prefix, storage_path)
-                    for configuration_file in self._getFilesInDirectory(path, exclude_paths = exclude_folders):
-                        yield UpgradeTask(storage_path = path, file_name = configuration_file, configuration_type = old_configuration_type)
+                    for configuration_file in self._getFilesInDirectory(path):
+                        result.append(UpgradeTask(storage_path = path, file_name = configuration_file, configuration_type = old_configuration_type))
+        return result
 
     ##  Stores an old version of a configuration file away.
     #
@@ -279,6 +274,8 @@ class VersionUpgradeManager:
         try:
             with open(configuration_file_absolute, encoding = "utf-8", errors = "ignore") as file_handle:
                 files_data = [file_handle.read()]
+        except MemoryError: #File is too big. It might be the log.
+            return False
         except FileNotFoundError: #File was already moved to an /old directory.
             return False
         except IOError:
@@ -292,7 +289,13 @@ class VersionUpgradeManager:
             return False
         version = old_version
         configuration_type = old_configuration_type
-        filenames_without_extension = [os.path.splitext(configuration_file)[0]]
+
+        try:
+            mime_type = UM.MimeTypeDatabase.getMimeTypeForFile(configuration_file)  # Get the actual MIME type object, from the name.
+        except UM.MimeTypeDatabase.MimeTypeNotFoundError:
+            return False
+
+        filenames_without_extension = [self._stripMimeTypeExtension(mime_type, configuration_file)]
 
         #Keep converting the file until it's at one of the current versions.
         while (configuration_type, version) not in self._current_versions:
@@ -306,9 +309,11 @@ class VersionUpgradeManager:
                 try:
                     this_filenames_without_extension, this_files_data = upgrade_step(file_data, filenames_without_extension[file_idx])
                 except Exception as e: #Upgrade failed due to a coding error in the plug-in.
-                    Logger.logException("w", "Exception in %s upgrade with %s: %s", old_configuration_type, upgrade_step.__module__, str(e))
+                    Logger.logException("w", "Exception in %s upgrade with %s: %s", old_configuration_type,
+                                        upgrade_step.__module__, traceback.format_exc() )
                     return False
                 if not this_files_data: #Upgrade failed.
+                    Logger.log("w", "Unable to upgrade the file %s. Skipping it.", filenames_without_extension[file_idx])
                     return False
                 new_filenames_without_extension += this_filenames_without_extension
                 new_files_data += this_files_data
@@ -344,3 +349,13 @@ class VersionUpgradeManager:
             Logger.log("i", "Upgraded %s to version %s.", configuration_file, str(version))
             return True
         return False #Version didn't change. Was already current.
+
+    def _stripMimeTypeExtension(self, mime_type, file_name):
+        suffixes = mime_type.suffixes[:]
+        if mime_type.preferredSuffix:
+            suffixes.append(mime_type.preferredSuffix)
+        for suffix in suffixes:
+            if file_name.endswith(suffix):
+                return file_name[: -len(suffix) -1] # last -1 is for the dot separating name and extension.
+
+        return file_name

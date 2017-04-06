@@ -62,6 +62,25 @@ class SettingInstance:
 
         self.__property_values = {}
 
+    ##  Get a list of all supported property names
+    def getPropertyNames(self):
+        return self.__property_values.keys()
+
+    def __eq__(self, other):
+        if type(self) != type(other):
+            return False  # Type mismatch
+
+        for property_name in self.__property_values:
+            try:
+                if other.__getattr__(property_name) != self.__getattr__(property_name):
+                    return False  # Property values don't match
+            except AttributeError:
+                return False  # Other does not have the property
+        return True
+
+    def __ne__(self, other):
+        return not (self == other)
+
     def __getattr__(self, name):
         if name == "_SettingInstance__property_values":
             # Prevent infinite recursion when __property_values is not set.
@@ -106,6 +125,9 @@ class SettingInstance:
                     self.propertyChanged.emit(self._definition.key, "validationState")
 
                 self.propertyChanged.emit(self._definition.key, name)
+                for property_name in self._definition.getPropertyNames():
+                    if self._definition.dependsOnProperty(property_name) == name:
+                        self.propertyChanged.emit(self._definition.key, property_name)
         else:
             if name == "state":
                 if value == "InstanceState.Calculated":
@@ -181,7 +203,8 @@ class SettingInstance:
             # That would increase performance by reducing the amount of updates.
             for relation in changed_relations:
                 container.propertyChanged.emit(relation.target.key, relation.role)
-                if relation.role == "value":  # If the value state is updated, the validation state could also be changed.
+                # If the value/minimum value/etc state is updated, the validation state must be re-evaluated
+                if relation.role in {"value", "minimum_value", "maximum_value", "minimum_value_warning", "maximum_value_warning"}:
                     container.propertyChanged.emit(relation.target.key, "validationState")
 
     ##  Recursive function to put all settings that require eachother for changes of a property value in a list
