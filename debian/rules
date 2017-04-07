@@ -7,4 +7,4 @@ export DH_VERBOSE = 1
 	dh $@ --buildsystem=cmake --with python3 --parallel
 
 override_dh_auto_configure:
-	dh_auto_configure -- -DGETTEXT_MSGINIT_EXECUTABLE=msginit -DGETTEXT_MSGCONV_EXECUTABLE=msgconv -DGETTEXT_MSGMERGE_EXECUTABLE=msgmerge
+	dh_auto_configure -- -DGETTEXT_MSGINIT_EXECUTABLE=msginit -DGETTEXT_MSGCONV_EXECUTABLE=msgconv -DGETTEXT_MSGMERGE_EXECUTABLE=msgmerge -DCURA_BINARY_DATA_DIRECTORY=/usr/share/uranium
