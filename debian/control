@@ -16,7 +16,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, ${python3:Depends},
  python3-numpy, python3-scipy, python3-serial,
  python3-pyqt5, python3-pyqt5.qtopengl, python3-pyqt5.qtquick, python3-pyqt5.qtsvg,
  qml-module-qtqml-models2, qml-module-qtquick-dialogs,
- python3-arcus (>= 2.3.1)
+ python3-arcus (>= 2.4.0)
 Provides:
  ${python3:Provides}
 XB-Python3-Version:
